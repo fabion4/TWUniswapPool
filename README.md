@@ -1,9 +1,6 @@
 # TWUniswapPool
 
-Got it! Here's the description formatted in Markdown, suitable for a GitHub `README.md` file or similar documentation.
-
----
-
+#DeFi #LiquidityMining #Uniswapv3 #ConcentratedLiquidity #QuantitativeFinance #TradingTools #PineScript #AlgorithmicTrading #VibeCoding #FinancialVisualization
 # Pine Script: Concentrated Liquidity Pool Tracker & Visualizer
 
 This Pine Script indicator provides a comprehensive solution for tracking and visualizing concentrated liquidity pools, particularly useful for protocols like Uniswap V3. It allows users to define and monitor multiple liquidity positions directly on their TradingView charts.
