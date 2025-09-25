@@ -1,0 +1,477 @@
+//@version=6
+indicator("FC - Pool Tracker 6.0 (Fees Tracking)", overlay=true)
+
+// ============================================================================
+// Version History
+// ============================================================================
+// v6.0   - Added "fees_val" field to Pool type
+//        - Updated all pool definitions with explicit fees value (0.0 for older pools, actual for Pool 16)
+//        - Updated labels to display fees in USD and percentage of current pool value for all pools
+//
+// v5.0 - Original base version
+//        - Manages and visualizes multiple liquidity pools in a DeFi context
+//        - Plots price ranges, liquidity values, and performance over time
+//        - Allows adding new pools with specific parameters
+// ============================================================================
+//
+// General description:
+// This script manages multiple DeFi liquidity pools and visualizes them on a TradingView chart.
+// It plots each pool's price range, liquidity, initial deposit, and performance.
+// Now supports tracking of fees earned for each pool.
+// ============================================================================
+
+//------------------------------------------------------------------------------
+// 1. CUSTOM DATA TYPE DEFINITION FOR A POOL
+//------------------------------------------------------------------------------
+type Pool
+    bool    show_pool           // A switch to show or hide the pool
+    int     open_time           // Opening date and time (timestamp)
+    int     close_time          // Closing date and time (timestamp)
+    float   high_val            // Maximum pool value (Pb)
+    float   low_val             // Minimum pool value (Pa)
+    color   pool_color          // Color for lines and labels
+    string  label_type          // Type of label to show ("span" or "default")
+    float   initamt_val         // Initial deposited value (V0)
+    float   initial_price       // Price at the time of deposit (P_deposit) - crucial for L calculation
+    float   liquidity           // Calculated Liquidity L (calculated once from V0 and P_deposit)
+    float   fees_val            // Fees gained until now
+    // Add references to drawing objects to manage them
+    line    line_high_ref       // Reference to the high line object
+    line    line_low_ref        // Reference to the low line object
+    label   label_info_ref      // Reference to the main info label object
+    label   label_initial_price_ref // Reference to the initial price marker label
+
+//------------------------------------------------------------------------------
+// 2. INPUT OF CONFIGURATION
+//------------------------------------------------------------------------------
+// ---- Pool 1 ----
+show_p1          = true          // Show Pool 1
+p1_open          = timestamp("2025-06-23 15:40")   // Pool 1 Opening
+p1_close         = timestamp("2025-06-23 18:12")   // Pool 1 Closing
+p1_high          = 2375.62       // Pool 1 Maximum Value
+p1_low           = 2239.52       // Pool 1 Minimum Value
+p1_color         = color.blue    // Pool 1 Color
+p1_initamt       = 941.00        // Pool 1 Initial V0 (USDC)
+p1_initial_price = 2271.00       // Pool 1 Initial Deposit Price
+p1_fees          = 0.0
+
+
+// ---- Pool 2 ----
+show_p2          = true          // Show Pool 2
+p2_open          = timestamp("2025-06-18 18:21")   // Pool 2 Opening
+p2_close         = timestamp("2025-06-18 21:30")   // Pool 2 Closing
+p2_high          = 2537          // Pool 2 Maximum Value
+p2_low           = 2470          // Pool 2 Minimum Value
+p2_color         = color.rgb(9, 94, 37)  // Pool 2 Color
+p2_initamt       = 958.78        // Pool 2 Initial V0 (USDC)
+p2_initial_price = 2490          // Pool 2 Initial Deposit Price
+p2_fees          = 0.0
+
+
+// ---- Pool 3 ----
+show_p3          = true          // Show Pool 3
+p3_open          = timestamp("2025-06-19 15:38")   // Pool 3 Opening
+p3_close         = timestamp("2025-06-19 21:18")   // Pool 3 Closing
+p3_high          = 2545.32       // Pool 3 Maximum Value
+p3_low           = 2497.42       // Pool 3 Minimum Value
+p3_color         = color.rgb(187, 53, 12)  // Pool 3 Color
+p3_initamt       = 996.32        // Pool 3 Initial V0 (USDC)
+p3_initial_price = 2500          // Pool 3 Initial Deposit Price
+p3_fees          = 0.0
+
+
+// ---- Pool 4 ----
+show_p4          = true          // Show Pool 4
+p4_open          = timestamp("2025-06-14 15:50")   // Pool 4 Opening
+p4_close         = timestamp("2025-06-14 23:00")   // Pool 4 Closing
+p4_high          = 2503.0        // Pool 4 Maximum Value
+p4_low           = 2413.0        // Pool 4 Minimum Value
+p4_color         = color.orange // Pool 4 Color
+p4_initamt       = 877.5         // Pool 4 Initial V0 (USDC)
+p4_initial_price = 2500.00       // Pool 4 Initial Deposit Price
+p4_fees          = 0.0
+
+
+// ---- Pool 5 ----
+show_p5          = true          // Show Pool 5
+p5_open          = timestamp("2025-06-24 12:50")   // Pool 5 Opening
+p5_close         = timestamp("2025-06-24 20:59")   // Pool 5 Closing
+p5_high          = 2445.0        // Pool 5 Maximum Value
+p5_low           = 2373.0        // Pool 5 Minimum Value
+p5_color         = color.rgb(23, 196, 52)  // Pool 5 Color
+p5_initamt       = 856.0         // Pool 5 Initial V0 (USDC)
+p5_initial_price = 2433.00       // Initial Deposit Price
+p5_fees          = 0.0
+
+
+// ---- Pool 6 ----
+show_p6          = true          // Show Pool 5
+p6_open          = timestamp("2025-06-26 12:50")   // Pool 5 Opening
+p6_close         = timestamp("2025-06-27 04:00")   // Pool 5 Closing
+p6_high          = 2499.91        // Pool 5 Maximum Value
+p6_low           = 2399.49        // Pool 5 Minimum Value
+p6_color         = color.rgb(56, 99, 16)  // Pool 5 Color
+p6_initamt       = 1000.92         // Pool 5 Initial V0 (USDC)
+p6_initial_price = 2433.72       // Initial Deposit Price
+p6_fees          = 0.0
+
+
+// ---- Pool 7 ----
+show_p7          = true          // Show Pool 5
+p7_open          = timestamp("2025-06-27 15:20")   // Pool 5 Opening
+p7_close         = timestamp("2025-06-28 16:10")   // Pool 5 Closing
+p7_high          = 2440.63        // Pool 5 Maximum Value
+p7_low           = 2409.1        // Pool 5 Minimum Value
+p7_color         = color.rgb(56, 99, 16)  // Pool 5 Color
+p7_initamt       = 1019.61         // Pool 5 Initial V0 (USDC)
+p7_initial_price = 2424       // Initial Deposit Price
+p7_fees          = 0.0
+
+
+// ---- Pool 8 ----
+show_p8          = true          // Show Pool 5
+p8_open          = timestamp("2025-06-28 23:0")   // Pool 5 Opening
+p8_close         = timestamp("2025-06-29 11:48")   // Pool 5 Closing
+p8_high          = 2460.23     // Pool 5 Maximum Value
+p8_low           = 2418.78        // Pool 5 Minimum Value
+p8_color         = color.rgb(56, 99, 16)  // Pool 5 Color
+p8_initamt       = 1043         // Pool 5 Initial V0 (USDC)
+p8_initial_price = 2441       // Initial Deposit Price
+p8_fees          = 0.0
+
+
+// ---- Pool 9 ----
+show_p9          = true          // Show Pool 5
+p9_open          = timestamp("2025-06-29 15:0")   // Pool 5 Opening
+p9_close         = timestamp("2025-06-29 22:18")   // Pool 5 Closing
+p9_high          = 2450.44     // Pool 5 Maximum Value
+p9_low           = 2430.89        // Pool 5 Minimum Value
+p9_color         = color.rgb(192, 204, 29)  // Pool 5 Color
+p9_initamt       = 1036.80         // Pool 5 Initial V0 (USDC)
+p9_initial_price = 2444       // Initial Deposit Price
+p9_fees          = 0.0
+
+
+// ---- Pool 10 ----
+show_p10          = true          // Show Pool 5
+p10_open          = timestamp("2025-06-30 20:0")   // Pool 5 Opening
+p10_close         = timestamp("2025-06-30 22:15")   // Pool 5 Closing
+p10_high          = 2509.93     // Pool 5 Maximum Value
+p10_low           = 2470.09        // Pool 5 Minimum Value
+p10_color         = color.rgb(175, 41, 108)  // Pool 5 Color
+p10_initamt       = 1000.80         // Pool 5 Initial V0 (USDC)
+p10_initial_price = 2510       // Initial Deposit Price
+p10_fees          = 0.0
+
+
+// ---- Pool 11 ----
+show_p11          = true          // Show Pool 11
+p11_open          = timestamp("2025-07-01 16:0")   // Pool 11 Opening
+p11_close         = timestamp("2025-07-02 03:00")   // Pool 11 Closing
+p11_high          = 2440.63     // Pool 11 Maximum Value
+p11_low           = 2421.19       // Pool 11 Minimum Value
+p11_color         = color.rgb(41, 175, 164)  // Pool 11 Color
+p11_initamt       = 2004.7       // Pool 11 Initial V0 (USDC)
+p11_initial_price = 2429.2       // Initial Deposit Price
+p11_fees          = 0.0
+
+
+// ---- Pool 12 ----
+show_p12          = true          // Show Pool 12
+p12_open          = timestamp("2025-07-07 15:36")   // Pool 12 Opening
+p12_close         = timestamp("2025-07-08 04:50")   // Pool 12 Closing
+p12_high          = 2583.78     // Pool 12 Maximum Value
+p12_low           = 2519.93        // Pool 12 Minimum Value
+p12_color         = color.rgb(84, 199, 219)  // Pool 12 Color
+p12_initamt       = 2020         // Pool 12 Initial V0 (USDC)
+p12_initial_price = 2540       // Initial Deposit Price
+p12_fees          = 0.0
+
+// ---- Pool 13 ---- AAVE https://app.uniswap.org/positions/v3/arbitrum/4692412
+show_p13          = true          // Show Pool 13
+p13_open          = timestamp("2025-07-22 15:10")   // Pool 13 Opening
+p13_close         = timestamp("2025-08-22 04:50")   // Pool 13 Closing
+p13_high          = 341     // Pool 13 Maximum Value
+p13_low           = 277        // Pool 13 Minimum Value
+p13_color         = color.rgb(84, 199, 219)  // Pool 13 Color
+p13_initamt       = 417         // Pool 13 Initial V0 (USDC)
+p13_initial_price = 307       // Initial Deposit Price
+p13_fees          = 15
+
+// ---- Pool 15 ---- [SOSTITUISCI QUESTO COMMENTO CON IL NOME DELLA POOL E IL LINK SE DISPONIBILE]
+show_p15          = true                                      // Show Pool 15
+p15_open          = timestamp("2025-08-05 16:40")             // Pool 15 Opening
+p15_close         = timestamp("2025-08-06 21:30")             // Pool 15 Closing
+p15_high          = 3850.62                                       // Pool 15 Maximum Value
+p15_low           = 3501.67                                       // Pool 15 Minimum Value
+p15_color         = color.rgb(219, 84, 197)                   // Pool 15 Color (same as Pool 13)
+p15_initamt       = 687.92                                  // Pool 15 Initial V0 (USDC)
+p15_initial_price = 3604                                      // Initial Deposit Price
+p15_fees          = 0.0
+
+// ---- Pool 16 ---- WETH / USDC v3 0.05% [Arbitrum One] (link se disponibile)
+show_p16          = true                                      // Show Pool 16
+p16_open          = timestamp("2025-08-13 12:00")             // Pool 16 Opening (esempio)
+p16_close         = timestamp("2025-08-29 21:00")             // Pool 16 Closing (esempio)
+p16_high          = 4670.31                                   // Pool 16 Maximum Value
+//p16_low           = 4451.44                                   // Pool 16 Minimum Value
+p16_low           = 4400.44
+p16_color         = color.rgb(219, 84, 197)                   // Pool 16 Color (same as Pool 13/15)
+p16_initamt       = 2267                                   // Pool 16 Initial V0 (USDC)
+p16_initial_price = 4650                                   // Initial Deposit Price (Market price)
+p16_fees          = 0.04
+
+// ---- Pool 17 ---- WETH / USDC v3 0.05% [Arbitrum One]
+show_p17          = true                                      // Show Pool 17
+p17_open          = timestamp("2025-09-12 22:00")             // Pool 17 Opening (example)
+p17_close         = timestamp("2025-09-19 21:00")             // Pool 17 Closing (example)
+p17_high          = 4670.31                                   // Pool 17 Maximum Value (placeholder)
+p17_low           = 4398.34                                   // Pool 17 Minimum Value (placeholder)
+p17_color         = color.rgb(219, 84, 197)                 // Pool 17 Color (same as Pool 13/15/16)
+p17_initamt       = 2401.54                                   // Pool 17 Initial V0 (USDC) (placeholder)
+p17_initial_price = 4670.31                                   // Initial Deposit Price (Market price) (placeholder)
+p17_fees          = 47.70
+
+// ---- Pool 18 ---- WETH / USDC v3 0.05% [Arbitrum One]
+show_p18          = true                                      // Show Pool 18
+p18_open          = timestamp("2025-09-20 16:00")             // Pool 18 Opening (example)
+p18_close         = timestamp("2025-09-26 21:00")             // Pool 18 Closing (example)
+p18_high          = 4000                                       // Pool 18 Maximum Value (placeholder)
+p18_low           = 3760                                      // Pool 18 Minimum Value (placeholder)
+p18_color         = color.rgb(219, 84, 197)                   // Pool 18 Color (same as Pool 13/15/16/17)
+p18_initamt       = 2180                                       // Pool 18 Initial V0 (USDC) (placeholder)
+p18_initial_price = 4003                                       // Initial Deposit Price (Market price) (placeholder)
+p18_fees          = 0.0                                       // Pool 18 Fees (placeholder)
+
+
+//------------------------------------------------------------------------------
+// 3. LIQUIDITY AND CURRENT VALUE CALCULATION FUNCTIONS
+//------------------------------------------------------------------------------
+
+// Function to calculate liquidity (L) based on initial deposited value (V0)
+// and the price at the time of deposit (P_deposit), and the pool's price range.
+// **This function is using the logic that you previously confirmed produced "ok" liquidity values.**
+calculateLiquidity(V0, Pa, Pb, P_deposit) =>
+    float L = 0.0
+    if V0 == 0.0 or P_deposit <= 0.0 or Pa <= 0 or Pb <= 0 or Pa >= Pb // Added safety checks here
+        0.0 // Returns 0 for invalid inputs or zero liquidity
+    else if P_deposit <= Pa
+        L := V0 / ((1 / math.sqrt(Pa)) - (1 / math.sqrt(Pb))) / Pa
+    else if P_deposit >= Pb
+        L := V0 / (math.sqrt(Pb) - math.sqrt(Pa))
+    else // Pa < P_deposit < Pb
+        L := V0 / (((1 / math.sqrt(P_deposit)) - (1 / math.sqrt(Pb))) * P_deposit + (math.sqrt(P_deposit) - math.sqrt(Pa)))
+    L
+
+// Function to calculate a SINGLE component of the pool's actual value at the current price.
+// Returns a float representing total value, amount0 (USDC), or amount1 (ETH).
+// P_current is assumed to be Price = Token0 / Token1 (e.g., USDC / ETH).
+// **The logic for token distribution at boundaries is now set to your explicitly stated requirements.**
+calculateActualPoolComponent(L, Pa, Pb, P_current, return_type) =>
+    float result = 0.0
+
+    if L == 0.0 or Pa <= 0 or Pb <= 0 or Pa >= Pb or P_current <= 0
+        // Return 0 for invalid inputs or zero liquidity
+        result
+    else
+        float amount0_USDC = 0.0 // Amount of Token0 (USDC)
+        float amount1_ETH = 0.0  // Amount of Token1 (ETH)
+
+        float current_price_sqrt = math.sqrt(P_current)
+        float pa_sqrt = math.sqrt(Pa)
+        float pb_sqrt = math.sqrt(Pb)
+
+        // **Implementing YOUR SPECIFIC TOKEN DISTRIBUTION LOGIC:**
+        // If P_current is below or at the lower bound (Pa), the pool should primarily hold ETH.
+        if P_current <= Pa
+            amount0_USDC :=    0.0  
+            amount1_ETH :=L * (1 / pa_sqrt - 1 / pb_sqrt) // Formula for all Token1 (ETH)
+        // If P_current is above or at the upper bound (Pb), the pool should primarily hold USDC.
+        else if P_current >= Pb
+            amount0_USDC := L * (pb_sqrt - pa_sqrt) // Formula for all Token0 (USDC)
+            amount1_ETH := 0.0
+        else // Pa < P_current < Pb, both tokens exist within the range
+            // These formulas remain the same as they are correct for in-range
+            amount0_USDC := L * (current_price_sqrt - pa_sqrt) // Amount of Token0 (USDC) in the pool
+            amount1_ETH :=    L * (1 / current_price_sqrt - 1 / pb_sqrt)     // Amount of Token1 (ETH) in the pool
+        
+        // Return the requested component based on 'return_type'
+        if return_type == "value"
+            result := amount0_USDC + (amount1_ETH * P_current) // Total value in Token0 terms
+        else if return_type == "amount0_USDC"
+            result := amount0_USDC // Only Token0 amount
+        else if return_type == "amount1_ETH"
+            result := amount1_ETH // Only Token1 amount
+        
+        result
+//------------------------------------------------------------------------------
+// 4. POOL ARRAY CREATION
+//------------------------------------------------------------------------------
+// 'var' keyword initializes the array once on the first bar and preserves its state.
+var pools = array.new<Pool>()
+if (bar_index == 0)
+    // For each defined pool, calculate its initial liquidity (L) and add it to the 'pools' array.
+    // Each pool is initialized with 'na' for drawing object references, which will be created later.
+    float L_p1 = calculateLiquidity(p1_initamt, p1_low, p1_high, p1_initial_price)
+    array.push(pools, Pool.new(show_p1, p1_open, p1_close, p1_high, p1_low, p1_color, "span", p1_initamt, p1_initial_price, L_p1, p1_fees ,na, na, na, na))
+    
+    float L_p2 = calculateLiquidity(p2_initamt, p2_low, p2_high, p2_initial_price)
+    array.push(pools, Pool.new(show_p2, p2_open, p2_close, p2_high, p2_low, p2_color, "span", p2_initamt, p2_initial_price, L_p2, p2_fees, na, na, na, na))
+    
+    float L_p3 = calculateLiquidity(p3_initamt, p3_low, p3_high, p3_initial_price)
+    array.push(pools, Pool.new(show_p3, p3_open, p3_close, p3_high, p3_low, p3_color, "span", p3_initamt, p3_initial_price, L_p3, p3_fees, na, na, na, na))
+    
+    float L_p4 = calculateLiquidity(p4_initamt, p4_low, p4_high, p4_initial_price)
+    array.push(pools, Pool.new(show_p4, p4_open, p4_close, p4_high, p4_low, p4_color, "span", p4_initamt, p4_initial_price, L_p4, p4_fees, na, na, na, na))
+    
+    float L_p5 = calculateLiquidity(p5_initamt, p5_low, p5_high, p5_initial_price)
+    array.push(pools, Pool.new(show_p5, p5_open, p5_close, p5_high, p5_low, p5_color, "span", p5_initamt, p5_initial_price, L_p5, p5_fees, na, na, na, na)) 
+
+    float L_p6 = calculateLiquidity(p6_initamt, p6_low, p6_high, p6_initial_price)
+    array.push(pools, Pool.new(show_p6, p6_open, p6_close, p6_high, p6_low, p6_color, "span", p6_initamt, p6_initial_price, L_p6, p6_fees, na, na, na, na)) 
+
+    float L_p7 = calculateLiquidity(p7_initamt, p7_low, p7_high, p7_initial_price)
+    array.push(pools, Pool.new(show_p7, p7_open, p7_close, p7_high, p7_low, p7_color, "span", p7_initamt, p7_initial_price, L_p7, p7_fees, na, na, na, na)) 
+
+    float L_p8 = calculateLiquidity(p8_initamt, p8_low, p8_high, p8_initial_price)
+    array.push(pools, Pool.new(show_p8, p8_open, p8_close, p8_high, p8_low, p8_color, "span", p8_initamt, p8_initial_price, L_p8, p8_fees, na, na, na, na)) 
+
+    float L_p9 = calculateLiquidity(p9_initamt, p9_low, p9_high, p9_initial_price)
+    array.push(pools, Pool.new(show_p9, p9_open, p9_close, p9_high, p9_low, p9_color, "span", p9_initamt, p9_initial_price, L_p9, p9_fees, na, na, na, na)) 
+        
+    float L_p10 = calculateLiquidity(p10_initamt, p10_low, p10_high, p10_initial_price)
+    array.push(pools, Pool.new(show_p10, p10_open, p10_close, p10_high, p10_low, p10_color, "span", p10_initamt, p10_initial_price, L_p10, p10_fees,  na, na, na, na)) 
+        
+    float L_p11 = calculateLiquidity(p11_initamt, p11_low, p11_high, p11_initial_price)
+    array.push(pools, Pool.new(show_p11, p11_open, p11_close, p11_high, p11_low, p11_color, "span", p11_initamt, p11_initial_price, L_p11, p11_fees, na, na, na, na))
+
+    float L_p12 = calculateLiquidity(p12_initamt, p12_low, p12_high, p12_initial_price)
+    array.push(pools, Pool.new(show_p12, p12_open, p12_close, p12_high, p12_low, p12_color, "span", p12_initamt, p12_initial_price, L_p12, p12_fees, na, na, na, na))
+
+    float L_p13 = calculateLiquidity(p13_initamt, p13_low, p13_high, p13_initial_price)
+    array.push(pools, Pool.new(show_p13, p13_open, p13_close, p13_high, p13_low, p13_color, "span", p13_initamt, p13_initial_price, L_p13, p13_fees, na, na, na, na))
+
+    float L_p15 = calculateLiquidity(p15_initamt, p15_low, p15_high, p15_initial_price)
+    array.push(pools, Pool.new(show_p15, p15_open, p15_close, p15_high, p15_low, p15_color, "span", p15_initamt, p15_initial_price, L_p15, p15_fees, na, na, na, na))
+    
+    float L_p16 = calculateLiquidity(p16_initamt, p16_low, p16_high, p16_initial_price)
+    array.push(pools, Pool.new(show_p16, p16_open, p16_close, p16_high, p16_low, p16_color, "span", p16_initamt, p16_initial_price, L_p16, p16_fees, na, na, na, na))
+
+    float L_p17 = calculateLiquidity(p17_initamt, p17_low, p17_high, p17_initial_price)
+    array.push(pools, Pool.new(show_p17, p17_open, p17_close, p17_high, p17_low, p17_color, "span", p17_initamt, p17_initial_price, L_p17, p17_fees, na, na, na, na))
+
+    float L_p18 = calculateLiquidity(p18_initamt, p18_low, p18_high, p18_initial_price)
+    array.push(pools, Pool.new(show_p18, p18_open, p18_close, p18_high, p18_low, p18_color, "span", p18_initamt, p18_initial_price, L_p18, p18_fees, na, na, na, na))
+
+//------------------------------------------------------------------------------
+// 5. DRAWING LOGIC WITH 'FOR' LOOP
+//------------------------------------------------------------------------------
+// This loop runs on every bar of the chart. It iterates through each pool
+// in the array and, if active, performs calculations and draws elements.
+// Use 'var' to persist drawing objects across bars (for efficient updates)
+var float current_liquidity_val = 0.0
+var float actual_value_for_label_val = 0.0
+var float amount0_USDC_for_label_val = 0.0
+var float amount1_ETH_for_label_val = 0.0
+var string label_text_val = ""
+
+for i = 0 to array.size(pools) - 1
+    pool = array.get(pools, i)
+
+    if pool.show_pool
+        // Calculate dynamic values for the current pool.
+        current_liquidity_val := pool.liquidity 
+        actual_value_for_label_val := calculateActualPoolComponent(current_liquidity_val, pool.low_val, pool.high_val, close, "value")
+        amount0_USDC_for_label_val := calculateActualPoolComponent(current_liquidity_val, pool.low_val, pool.high_val, close, "amount0_USDC")
+        amount1_ETH_for_label_val := calculateActualPoolComponent(current_liquidity_val, pool.low_val, pool.high_val, close, "amount1_ETH")
+        // fees % calculation
+        float fees_gain = pool.fees_val
+        float fees_pct = actual_value_for_label_val > 0 ? (fees_gain / actual_value_for_label_val) * 100 : na
+        
+        
+        // Prepare the text for the label based on the specified type
+        if pool.label_type == "span"
+            span = (pool.high_val / pool.low_val - 1) * 100
+            label_text_val := "span (" + str.tostring(pool.initamt_val, "0.00'$'") + ") " + str.tostring(span, "0.00'%'") +
+                          "\nL: " + str.tostring(current_liquidity_val, "0.00") +
+                          "\nVal: " + str.tostring(actual_value_for_label_val, "0.00'$'") +
+                          "\nUSDC: " + str.tostring(amount0_USDC_for_label_val, "0.00'$'") +
+                          "\nETH: " + str.tostring(amount1_ETH_for_label_val, "0.000") + " (" + str.tostring(amount1_ETH_for_label_val * close, "0.00'$'") +
+                          "\nFees: " + str.tostring(fees_gain, "0.00'$'") + " (" + str.tostring(fees_pct, "0.00'%'") + ")"
+        else
+            pool_center = (pool.high_val + pool.low_val) / 2
+            percent_diff = (close - pool_center) / pool_center
+            label_text_val := str.tostring(pool.high_val, "0.00") + " (" + str.tostring(percent_diff, format.percent) + ")" +
+                          "\nL: " + str.tostring(current_liquidity_val, "0.00") +
+                          "\nVal: " + str.tostring(actual_value_for_label_val, "0.00'$'") +
+                          "\nUSDC: " + str.tostring(amount0_USDC_for_label_val, "0.00'$'") +
+                          "\nETH: " + str.tostring(amount1_ETH_for_label_val, "0.000") + " (" + str.tostring(amount1_ETH_for_label_val * close, "0.00'$'") + 
+                          "\nFees: " + str.tostring(fees_gain, "0.00'$'") + " (" + str.tostring(fees_pct, "0.00'%'") + ")"
+        // --- Drawing Logic (create/update on last bar) ---
+        // We perform drawing only on the last bar for efficiency and to manage persistent objects.
+        if barstate.islast
+            // Create high price line if it doesn't exist, otherwise update it
+            if na(pool.line_high_ref)
+                pool.line_high_ref := line.new(x1=pool.open_time, y1=pool.high_val, x2=pool.close_time, y2=pool.high_val, color=pool.pool_color, width=1, xloc=xloc.bar_time)
+            else
+                line.set_x1(pool.line_high_ref, pool.open_time)
+                line.set_y1(pool.line_high_ref, pool.high_val)
+                line.set_x2(pool.line_high_ref, pool.close_time)
+                line.set_y2(pool.line_high_ref, pool.high_val)
+                line.set_color(pool.line_high_ref, pool.pool_color)
+
+            // Create low price line if it doesn't exist, otherwise update it
+            if na(pool.line_low_ref)
+                pool.line_low_ref := line.new(x1=pool.open_time, y1=pool.low_val, x2=pool.close_time, y2=pool.low_val, color=pool.pool_color, width=1, xloc=xloc.bar_time)
+            else
+                line.set_x1(pool.line_low_ref, pool.open_time)
+                line.set_y1(pool.line_low_ref, pool.low_val)
+                line.set_x2(pool.line_low_ref, pool.close_time)
+                line.set_y2(pool.line_low_ref, pool.low_val)
+                line.set_color(pool.line_low_ref, pool.pool_color)
+
+            // Main Info Label
+            // Create main info label if it doesn't exist, otherwise update it
+            if na(pool.label_info_ref)
+                pool.label_info_ref := label.new(x=pool.open_time, y=pool.high_val, text=label_text_val, 
+                                                  color=pool.pool_color, textcolor=color.white, 
+                                                  style=label.style_label_down, size=size.small, xloc=xloc.bar_time)
+            else
+                label.set_xy(pool.label_info_ref, pool.open_time, pool.high_val)
+                label.set_text(pool.label_info_ref, label_text_val)
+                label.set_color(pool.label_info_ref, pool.pool_color)
+                label.set_style(pool.label_info_ref, label.style_label_down) 
+                label.set_size(pool.label_info_ref, size.large)
+
+            // Initial Price Marker Label (currently active as per this version)
+            if pool.initial_price > 0 // Only create/update if initial_price is valid
+                if na(pool.label_initial_price_ref)
+                    pool.label_initial_price_ref := label.new(x=pool.open_time, y=pool.initial_price, text="In", 
+                                                              color=pool.pool_color, textcolor=color.white, 
+                                                              style=label.style_xcross, size=size.small, 
+                                                              xloc=xloc.bar_time)
+                else
+                    label.set_xy(pool.label_initial_price_ref, pool.open_time, pool.initial_price)
+                    label.set_text(pool.label_initial_price_ref, "▲")
+                    label.set_color(pool.label_initial_price_ref, pool.pool_color)
+                    label.set_style(pool.label_initial_price_ref, label.style_xcross)
+                    label.set_size(pool.label_initial_price_ref, size.small)
+            else // If initial_price is not valid (e.g., 0), delete the label if it exists
+                if not na(pool.label_initial_price_ref)
+                    label.delete(pool.label_initial_price_ref)
+                    pool.label_initial_price_ref := na // Clear reference after deletion
+
+    // If pool.show_pool is false, ensure existing drawing objects for this pool are removed from the chart
+    else if barstate.islast 
+        if not na(pool.line_high_ref)
+            line.delete(pool.line_high_ref)
+            pool.line_high_ref := na
+        if not na(pool.line_low_ref)
+            line.delete(pool.line_low_ref)
+            pool.line_low_ref := na
+        if not na(pool.label_info_ref)
+            label.delete(pool.label_info_ref)
+            pool.label_info_ref := na
+        if not na(pool.label_initial_price_ref)
+            label.delete(pool.label_initial_price_ref)
+            pool.label_initial_price_ref := na
